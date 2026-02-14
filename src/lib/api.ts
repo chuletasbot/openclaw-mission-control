@@ -1,5 +1,5 @@
 // OpenClaw Gateway API Client
-// Uses /tools/invoke endpoint proxied via Caddy
+// Proxied via /api/proxy to avoid CORS
 
 export interface ApiConfig {
   baseUrl: string
@@ -30,18 +30,20 @@ export function hasToken(): boolean {
 
 async function toolInvoke(tool: string, args: Record<string, unknown> = {}) {
   const { baseUrl, token } = getConfig()
-  const url = `${baseUrl}/tools/invoke`
-  const res = await fetch(url, {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (baseUrl) headers['x-gateway-url'] = baseUrl
+  if (token) headers['x-gateway-token'] = token
+
+  const res = await fetch('/api/proxy', {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({ tool, args })
   })
   if (!res.ok) throw new Error(`API ${res.status}`)
   const data = await res.json()
-  if (!data.ok) throw new Error(data.result?.error || 'API error')
+  if (!data.ok) throw new Error(data.result?.error || data.error || 'API error')
   return data.result?.details ?? data.result
 }
 
