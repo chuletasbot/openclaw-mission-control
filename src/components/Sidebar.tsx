@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { testConnection, hasToken } from '@/lib/api'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: '📊' },
@@ -12,10 +14,21 @@ const navItems = [
   { href: '/logs', label: 'Logs', icon: '📝' },
   { href: '/lab', label: 'Lab', icon: '🧪' },
   { href: '/memory', label: 'Memoria/Skills', icon: '🧠' },
+  { href: '/settings', label: 'Settings', icon: '⚙️' },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const [gwStatus, setGwStatus] = useState<'unknown' | 'online' | 'offline'>('unknown')
+
+  useEffect(() => {
+    if (!hasToken()) { setGwStatus('offline'); return }
+    testConnection().then(r => setGwStatus(r.ok ? 'online' : 'offline'))
+    const interval = setInterval(() => {
+      testConnection().then(r => setGwStatus(r.ok ? 'online' : 'offline'))
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <aside className="glass-sidebar fixed left-0 top-0 h-screen w-64 flex flex-col z-50">
@@ -31,7 +44,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = pathname === item.href
           return (
@@ -53,8 +66,16 @@ export default function Sidebar() {
 
       <div className="p-4 border-t border-white/5">
         <div className="glass-card p-3 flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-[#30d158] animate-pulse" />
-          <span className="text-xs text-[#8e8e93]">Gateway Online</span>
+          <div className={`w-2 h-2 rounded-full ${
+            gwStatus === 'online' ? 'bg-[#30d158] animate-pulse' :
+            gwStatus === 'offline' ? 'bg-[#ff453a]' :
+            'bg-[#8e8e93] animate-pulse'
+          }`} />
+          <span className="text-xs text-[#8e8e93]">
+            {gwStatus === 'online' ? 'Gateway Online' :
+             gwStatus === 'offline' ? 'Gateway Offline' :
+             'Checking...'}
+          </span>
         </div>
       </div>
     </aside>
