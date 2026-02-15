@@ -63,6 +63,22 @@ export async function runCronJob(jobId: string) {
   return toolInvoke('cron', { action: 'run', jobId })
 }
 
+export async function getMemoryFiles() {
+  return toolInvoke('exec', { command: 'find /home/node/.openclaw/workspace -maxdepth 3 -name "*.md" -not -path "*/node_modules/*" -not -path "*/.next/*" -not -path "*/.git/*" | sort' })
+}
+
+export async function readFile(path: string) {
+  return toolInvoke('Read', { file_path: path })
+}
+
+export async function writeFile(path: string, content: string) {
+  return toolInvoke('Write', { file_path: path, content })
+}
+
+export async function listSkills() {
+  return toolInvoke('exec', { command: 'ls -1 /app/skills/ 2>/dev/null && echo "---user---" && ls -1 /home/node/.openclaw/workspace/skills/ 2>/dev/null || true' })
+}
+
 export async function testConnection(): Promise<{ ok: boolean; status?: string; error?: string }> {
   try {
     const result = await getStatus()
