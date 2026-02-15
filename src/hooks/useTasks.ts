@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Task, Status, Priority } from '@/types/task'
 
 const STORAGE_KEY = 'openclaw-tasks'
@@ -37,22 +37,72 @@ const defaultTasks: Task[] = [
   },
 ]
 
+async function fetchTasks(): Promise<Task[] | null> {
+  try {
+    const res = await fetch('/api/tasks')
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.tasks ?? null
+  } catch {
+    return null
+  }
+}
+
+async function saveTasks(tasks: Task[]): Promise<boolean> {
+  try {
+    const res = await fetch('/api/tasks', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tasks }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loaded, setLoaded] = useState(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Load: try server first, fallback to localStorage, then defaults
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      try { setTasks(JSON.parse(stored)) } catch { setTasks(defaultTasks) }
-    } else {
-      setTasks(defaultTasks)
-    }
-    setLoaded(true)
+    ;(async () => {
+      const serverTasks = await fetchTasks()
+      if (serverTasks && serverTasks.length > 0) {
+        setTasks(serverTasks)
+      } else {
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored)
+            setTasks(parsed)
+            // Migrate localStorage data to server
+            saveTasks(parsed)
+          } catch {
+            setTasks(defaultTasks)
+          }
+        } else {
+          setTasks(defaultTasks)
+          saveTasks(defaultTasks)
+        }
+      }
+      setLoaded(true)
+    })()
   }, [])
 
+  // Save: debounced write to server + localStorage fallback
   useEffect(() => {
-    if (loaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks))
+    if (!loaded) return
+    // Always keep localStorage as fallback
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks))
+    // Debounce server save (300ms)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      saveTasks(tasks)
+    }, 300)
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
   }, [tasks, loaded])
 
   const addTask = useCallback((title: string, description: string, priority: Priority, deadline: string) => {
