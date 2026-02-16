@@ -19,7 +19,27 @@ export function saveConfig(config: Partial<ApiConfig>) {
   if (config.token !== undefined) localStorage.setItem('oc-gateway-token', config.token)
 }
 
+// Cache server-side config status
+let _serverConfigured: boolean | null = null
+
+export async function checkServerConfig(): Promise<{ configured: boolean; connected: boolean; source: string; message: string }> {
+  try {
+    const res = await fetch('/api/proxy/health')
+    const data = await res.json()
+    _serverConfigured = data.configured && data.connected
+    return data
+  } catch {
+    _serverConfigured = false
+    return { configured: false, connected: false, source: 'none', message: 'Health check failed' }
+  }
+}
+
+export function isServerConfigured(): boolean | null {
+  return _serverConfigured
+}
+
 export function isConfigured(): boolean {
+  if (_serverConfigured) return true
   const { token } = getConfig()
   return token.length > 0
 }
@@ -29,12 +49,15 @@ export function hasToken(): boolean {
 }
 
 async function toolInvoke(tool: string, args: Record<string, unknown> = {}) {
-  const { baseUrl, token } = getConfig()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  if (baseUrl) headers['x-gateway-url'] = baseUrl
-  if (token) headers['x-gateway-token'] = token
+  // Only send client-side credentials if server isn't already configured via env
+  if (!_serverConfigured) {
+    const { baseUrl, token } = getConfig()
+    if (baseUrl) headers['x-gateway-url'] = baseUrl
+    if (token) headers['x-gateway-token'] = token
+  }
 
   const res = await fetch('/api/proxy', {
     method: 'POST',

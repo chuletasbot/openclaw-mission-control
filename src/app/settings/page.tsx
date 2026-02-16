@@ -1,17 +1,19 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { getConfig, saveConfig, testConnection } from '@/lib/api'
+import { getConfig, saveConfig, testConnection, checkServerConfig } from '@/lib/api'
 
 export default function SettingsPage() {
   const [url, setUrl] = useState('')
   const [token, setToken] = useState('')
   const [status, setStatus] = useState<'idle'|'testing'|'ok'|'error'>('idle')
   const [statusMsg, setStatusMsg] = useState('')
+  const [envConfig, setEnvConfig] = useState<{ configured: boolean; connected: boolean; source: string; message: string } | null>(null)
 
   useEffect(() => {
     const cfg = getConfig()
     setUrl(cfg.baseUrl)
     setToken(cfg.token)
+    checkServerConfig().then(setEnvConfig)
   }, [])
 
   const handleSave = () => {
@@ -41,7 +43,25 @@ export default function SettingsPage() {
         <p className="text-[#8e8e93]">Configure your OpenClaw Gateway connection</p>
       </div>
 
-      <div className="glass-card p-6 space-y-6">
+      {envConfig?.configured && (
+        <div className={`glass-card p-5 border ${envConfig.connected ? 'border-[#30d158]/30 bg-[#30d158]/5' : 'border-[#ff9f0a]/30 bg-[#ff9f0a]/5'}`}>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">{envConfig.connected ? '🟢' : '🟡'}</span>
+            <div>
+              <p className="text-white font-medium">Configured via environment</p>
+              <p className="text-[#8e8e93] text-sm">{envConfig.message}</p>
+              <p className="text-[#8e8e93]/60 text-xs mt-1">
+                Gateway URL and token are set via <code className="text-[#7c5cfc]/80">OPENCLAW_GATEWAY_URL</code> and <code className="text-[#7c5cfc]/80">OPENCLAW_GATEWAY_TOKEN</code> environment variables. Manual configuration below is not needed.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`glass-card p-6 space-y-6 ${envConfig?.configured && envConfig?.connected ? 'opacity-50' : ''}`}>
+        {envConfig?.configured && envConfig?.connected && (
+          <p className="text-[#8e8e93] text-sm italic">Manual override (not needed when environment is configured)</p>
+        )}
         <div>
           <label className="block text-sm font-medium text-[#8e8e93] mb-2">Gateway URL</label>
           <input
